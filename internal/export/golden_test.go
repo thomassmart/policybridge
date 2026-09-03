@@ -42,6 +42,8 @@ func TestKustomizeExport_GoldenStructure(t *testing.T) {
 	requiredPrefixes := []string{
 		"policybridge-export/README.md",
 		"policybridge-export/base/kustomization.yaml",
+		"policybridge-export/base/policies/kustomization.yaml",
+		"policybridge-export/base/networking/kustomization.yaml",
 		"policybridge-export/overlays/development/kustomization.yaml",
 		"policybridge-export/reports/migration-summary.md",
 		"policybridge-export/reports/connectivity-comparison.json",

@@ -10,8 +10,9 @@ import (
 )
 
 func TestKustomizeExport_BuildGoldens(t *testing.T) {
-	if _, err := exec.LookPath("kustomize"); err != nil {
-		t.Skip("kustomize not installed")
+	build := kustomizeBuildCmd()
+	if build == nil {
+		t.Skip("kustomize/kubectl not installed")
 	}
 
 	dir := t.TempDir()
@@ -77,7 +78,7 @@ func TestKustomizeExport_BuildGoldens(t *testing.T) {
 		"policybridge-export/overlays/production",
 	}
 	for _, overlay := range overlays {
-		cmd := exec.Command("kustomize", "build", filepath.Join(extractDir, overlay))
+		cmd := build(filepath.Join(extractDir, overlay))
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("kustomize build %s: %v\n%s", overlay, err, out)
@@ -86,4 +87,18 @@ func TestKustomizeExport_BuildGoldens(t *testing.T) {
 			t.Fatalf("kustomize build %s produced empty output", overlay)
 		}
 	}
+}
+
+func kustomizeBuildCmd() func(dir string) *exec.Cmd {
+	if _, err := exec.LookPath("kustomize"); err == nil {
+		return func(dir string) *exec.Cmd {
+			return exec.Command("kustomize", "build", dir)
+		}
+	}
+	if _, err := exec.LookPath("kubectl"); err == nil {
+		return func(dir string) *exec.Cmd {
+			return exec.Command("kubectl", "kustomize", dir)
+		}
+	}
+	return nil
 }

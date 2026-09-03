@@ -78,50 +78,24 @@ func KustomizeExport(resourcesDir string, comparisonJSON []byte, metadata Export
 		return nil, err
 	}
 
-	baseKustomization := `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - policies/
-  - networking/
-`
-	if err := addZipEntry(zw, "policybridge-export/base/kustomization.yaml", []byte(baseKustomization)); err != nil {
+	hasPolicies, err := addResourceGroup(zw, resourcesDir, "policies", []string{"policies.yaml", "adminPolicies.yaml"})
+	if err != nil {
+		return nil, err
+	}
+	hasNetworking, err := addResourceGroup(zw, resourcesDir, "networking", []string{"namespaces.yaml", "udns.yaml", "vms.yaml", "pods.yaml"})
+	if err != nil {
 		return nil, err
 	}
 
-	policyFiles := []string{"policies.yaml", "adminPolicies.yaml"}
-	for _, pf := range policyFiles {
-		src := filepath.Join(resourcesDir, pf)
-		data, err := os.ReadFile(src)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if len(data) > 0 {
-			entry := fmt.Sprintf("policybridge-export/base/policies/%s", pf)
-			if err := addZipEntry(zw, entry, data); err != nil {
-				return nil, err
-			}
-		}
+	var groups []string
+	if hasPolicies {
+		groups = append(groups, "policies")
 	}
-
-	networkFiles := []string{"namespaces.yaml", "udns.yaml", "vms.yaml", "pods.yaml"}
-	for _, nf := range networkFiles {
-		src := filepath.Join(resourcesDir, nf)
-		data, err := os.ReadFile(src)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if len(data) > 0 {
-			entry := fmt.Sprintf("policybridge-export/base/networking/%s", nf)
-			if err := addZipEntry(zw, entry, data); err != nil {
-				return nil, err
-			}
-		}
+	if hasNetworking {
+		groups = append(groups, "networking")
+	}
+	if err := addZipEntry(zw, "policybridge-export/base/kustomization.yaml", []byte(buildKustomization(groups))); err != nil {
+		return nil, err
 	}
 
 	overlays := []string{"development", "test", "production"}
@@ -155,6 +129,51 @@ resources:
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func addResourceGroup(zw *zip.Writer, resourcesDir, group string, files []string) (bool, error) {
+	var included []string
+	for _, name := range files {
+		data, err := os.ReadFile(filepath.Join(resourcesDir, name))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if len(bytes.TrimSpace(data)) == 0 {
+			continue
+		}
+		entry := fmt.Sprintf("policybridge-export/base/%s/%s", group, name)
+		if err := addZipEntry(zw, entry, data); err != nil {
+			return false, err
+		}
+		included = append(included, name)
+	}
+	if len(included) == 0 {
+		return false, nil
+	}
+	entry := fmt.Sprintf("policybridge-export/base/%s/kustomization.yaml", group)
+	if err := addZipEntry(zw, entry, []byte(buildKustomization(included))); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func buildKustomization(resources []string) string {
+	var b strings.Builder
+	b.WriteString("apiVersion: kustomize.config.k8s.io/v1beta1\n")
+	b.WriteString("kind: Kustomization\n")
+	if len(resources) == 0 {
+		return b.String()
+	}
+	b.WriteString("resources:\n")
+	for _, r := range resources {
+		b.WriteString("  - ")
+		b.WriteString(r)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 func addZipEntry(zw *zip.Writer, name string, data []byte) error {

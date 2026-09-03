@@ -61,7 +61,9 @@ func TestKustomizeExport_Structure(t *testing.T) {
 	expected := []string{
 		"policybridge-export/README.md",
 		"policybridge-export/base/kustomization.yaml",
+		"policybridge-export/base/policies/kustomization.yaml",
 		"policybridge-export/base/policies/policies.yaml",
+		"policybridge-export/base/networking/kustomization.yaml",
 		"policybridge-export/base/networking/namespaces.yaml",
 		"policybridge-export/overlays/development/kustomization.yaml",
 		"policybridge-export/overlays/test/kustomization.yaml",
