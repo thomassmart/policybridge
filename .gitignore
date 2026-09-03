@@ -1,0 +1,55 @@
+# Binaries
+bin/
+*.exe
+*.test
+*.out
+
+# Local Go caches (never commit)
+.gocache/
+.gomodcache/
+
+# Dependencies
+node_modules/
+web/node_modules/
+web/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.*
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.crt
+credentials.json
+secrets.yaml
+secrets.yml
+
+# Build artefacts
+sbom.spdx.json
+coverage.out
+coverage.html
+dist/
+
+# Test fixtures: ignore NSX dumps by default so customer configs
+# cannot be committed. Allow only the attributed public samples.
+testdata/nsx/*.json
+!testdata/nsx/Example1.json
+!testdata/nsx/Example2.json
+!testdata/nsx/one_redundant_covered_by_2_rules.json

@@ -1,0 +1,68 @@
+.pf-topology--react {
+  min-height: 480px;
+  border: 1px solid var(--pf-v5-global--BorderColor--100, #d2d2d2);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  overflow: hidden;
+}
+
+.pb-topology-view,
+.pb-topology-view .pf-topology-container,
+.pb-topology-view .pf-topology-content {
+  height: 480px;
+  min-height: 480px;
+}
+
+.pb-topology-view .pf-topology-visualization-surface,
+.pb-topology-view .pf-topology-visualization-surface__svg {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+}
+
+.pf-topology--react .pf-topology-view {
+  background: transparent;
+}
+
+.pf-topology--react .pf-topology__hint {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  color: #6a6e73;
+  background: rgba(255, 255, 255, 0.9);
+  border-top: 1px solid #d2d2d2;
+}
+
+.pf-topology--empty {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-topology--react .pf-topology-node__label text,
+.pf-topology--react .pf-topology-node__label tspan {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pf-topology--react .pf-topology-node.pf-m-selected circle,
+.pf-topology--react .pf-topology-node.pf-m-focus circle {
+  stroke: #0066cc;
+  stroke-width: 2.5px;
+}
+
+.pf-topology--react .pf-topology__edge.pf-m-selected .pf-topology__edge__link {
+  stroke: #004080;
+  stroke-width: 2.5px;
+}
+
+.pf-topology--react .pf-topology__edge__background {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18px;
+}
+
+.pf-topology--react .pf-topology__edge__link {
+  fill: none;
+}

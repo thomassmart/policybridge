@@ -1,0 +1,409 @@
+openapi: 3.0.3
+info:
+  title: PolicyBridge API
+  version: 0.1.0
+  description: API for NSX DFW analysis and Kubernetes policy generation.
+
+servers:
+  - url: /api/v1
+
+paths:
+  /sessions:
+    post:
+      summary: Create a new analysis session
+      operationId: createSession
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+
+  /sessions/current:
+    get:
+      summary: Get current session info
+      operationId: getCurrentSession
+      responses:
+        '200':
+          description: Session info
+
+  /sessions/{id}/source/upload:
+    post:
+      summary: Upload NSX resource dump
+      operationId: uploadDump
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Upload validated
+
+  /sessions/{id}/source/connect:
+    post:
+      summary: Connect to NSX Manager and collect configuration
+      operationId: connectNSX
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectRequest'
+      responses:
+        '202':
+          description: Collection started
+
+  /sessions/{id}/source/test:
+    post:
+      summary: Test NSX Manager connection
+      operationId: testConnection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectRequest'
+      responses:
+        '200':
+          description: Connection successful
+
+  /sessions/{id}/summary:
+    get:
+      summary: Get configuration summary
+      operationId: getSummary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Configuration summary
+
+  /sessions/{id}/export/dump:
+    get:
+      summary: Download NSX resource dump JSON
+      operationId: exportDump
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ResourcesContainerModel JSON file
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+
+  /sessions/{id}/export/label-patch:
+    get:
+      summary: Download kubectl label patch for migrated workloads
+      operationId: exportLabelPatch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [sh, json]
+        - name: namespace
+          in: query
+          schema:
+            type: string
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shell script or JSON label patch manifest
+
+  /sessions/{id}/analyze:
+    post:
+      summary: Run NSX connectivity analysis and lint
+      operationId: analyze
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Analysis started
+
+  /sessions/{id}/analysis:
+    get:
+      summary: Get analysis results
+      operationId: getAnalysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Analysis results
+
+  /sessions/{id}/generate:
+    post:
+      summary: Generate Kubernetes policies
+      operationId: generate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationConfig'
+      responses:
+        '202':
+          description: Generation started
+
+  /sessions/{id}/policies:
+    get:
+      summary: Get generated policies
+      operationId: getPolicies
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: file
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Generated policies
+
+  /sessions/{id}/validate:
+    post:
+      summary: Validate generated policies against NSX intent
+      operationId: validate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Validation started
+
+  /sessions/{id}/validation:
+    get:
+      summary: Get validation results
+      operationId: getValidation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validation results
+
+  /sessions/{id}/export/yaml:
+    post:
+      summary: Export apply-ready YAML
+      operationId: exportYAML
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: YAML file
+
+  /sessions/{id}/export/kustomize:
+    post:
+      summary: Export GitOps Kustomize ZIP
+      operationId: exportKustomize
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ZIP file
+
+  /sessions/{id}/jobs/{jobId}:
+    get:
+      summary: Get job status
+      operationId: getJob
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status
+
+  /sessions/{id}/jobs/cancel:
+    post:
+      summary: Cancel current job
+      operationId: cancelJob
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job cancelled
+
+  /about:
+    get:
+      summary: Application information
+      operationId: about
+      responses:
+        '200':
+          description: About info
+
+components:
+  schemas:
+    ConnectRequest:
+      type: object
+      required: [host, username, password]
+      properties:
+        host:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        insecureSkipVerify:
+          type: boolean
+          default: false
+        anonymize:
+          type: boolean
+          default: false
+
+    GenerationConfig:
+      type: object
+      properties:
+        endpointsMapping:
+          type: string
+          enum: [vms, pods, both]
+          default: both
+        segmentsMapping:
+          type: string
+          enum: [pod-network, udns]
+          default: udns
+        policyOptimizationLevel:
+          type: string
+          enum: [none, moderate, max]
+          default: max
+        synthesizeAdminPolicies:
+          type: boolean
+          default: false
+        createDNSPolicy:
+          type: boolean
+          default: false
+        hintsInference:
+          type: boolean
+          default: false
+        disjointHints:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        outputFilter:
+          type: array
+          items:
+            type: string
+
+    Summary:
+      type: object
+      properties:
+        sourceType:
+          type: string
+        nsxVersion:
+          type: string
+        vmCount:
+          type: integer
+        groupCount:
+          type: integer
+        segmentCount:
+          type: integer
+        dfwPolicyCount:
+          type: integer
+        dfwRuleCount:
+          type: integer
+        serviceCount:
+          type: integer
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        state:
+          type: string
+          enum: [idle, running, completed, failed, cancelled]
+        progress:
+          type: integer
+        message:
+          type: string
+        error:
+          type: string

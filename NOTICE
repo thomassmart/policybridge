@@ -1,0 +1,21 @@
+PolicyBridge
+Copyright 2026 PolicyBridge Contributors
+
+This product includes software developed by third parties under the
+Apache License 2.0:
+
+- github.com/np-guard/vmware-analyzer v0.2.1
+  Copyright 2023- IBM Inc.
+  SPDX-License-Identifier: Apache-2.0
+
+- github.com/np-guard/netpol-analyzer v1.4.4
+  Copyright 2023- IBM Inc.
+  SPDX-License-Identifier: Apache-2.0
+
+- github.com/np-guard/models v0.5.7
+  SPDX-License-Identifier: Apache-2.0
+
+See THIRD_PARTY_NOTICES.md for full attribution details.
+
+PolicyBridge is an independent project and is not endorsed by NP-Guard,
+VMware, Broadcom, Red Hat, or IBM.
