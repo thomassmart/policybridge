@@ -53,3 +53,23 @@ func TestBuildLabelMap(t *testing.T) {
 		t.Fatal("expected identity mapping")
 	}
 }
+
+func TestParseNSXConnectivityJSON(t *testing.T) {
+	conns := ParseNSXConnectivityJSON([]byte(`[{"src":"vm-a","dst":"vm-b","conn":"All Connections"}]`))
+	if len(conns) != 1 || conns[0].Source != "vm-a" || conns[0].Connections != "All Connections" {
+		t.Fatalf("unexpected parse: %#v", conns)
+	}
+}
+
+func TestExpandUnrestricted(t *testing.T) {
+	conns := []NSXConnection{
+		{Source: "frontend-01", Destination: "backend-01", Connections: "All Connections"},
+	}
+	hints := []PortHint{
+		{Sources: []string{"frontend"}, Destinations: []string{"backend"}, Protocol: "TCP", Ports: "443", RuleID: 7},
+	}
+	got := ExpandUnrestricted(conns, hints)
+	if len(got) != 1 || got[0].Connections != "TCP dst-ports: 443" {
+		t.Fatalf("expected expanded TCP/443, got %#v", got)
+	}
+}

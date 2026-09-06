@@ -82,7 +82,7 @@ func GenerateOptions(dumpPath, synthesisDir string, cfg GenerationConfig) []Runn
 		WithSynthAdminPolicies(cfg.SynthesizeAdminPolicies),
 		WithSynthDNSPolicies(cfg.CreateDNSPolicy),
 		WithInferHints(cfg.HintsInference),
-		WithQuietVerbosity(true),
+		WithHighVerbosity(true),
 	}
 	if len(cfg.OutputFilter) > 0 {
 		opts = append(opts, WithAnalysisVMsFilter(cfg.OutputFilter))

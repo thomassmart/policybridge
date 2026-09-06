@@ -883,6 +883,9 @@ func (s *Server) runGenerate(ctx context.Context, sess *session.Session, job *se
 		job.SetError(writeErr.Error())
 		return
 	}
+	for _, warning := range nsxadapter.PrepareWarnings(prepared) {
+		job.AppendLog(warning)
+	}
 	dumpPath := filteredPath
 
 	opts := nsxadapter.GenerateOptions(dumpPath, genDir, cfg)
@@ -896,7 +899,9 @@ func (s *Server) runGenerate(ctx context.Context, sess *session.Session, job *se
 
 	job.SetProgress(30, "Generating Kubernetes resources with vmware-analyzer")
 	err = runWithHeartbeat(ctx, job, 30, 95, "Generating Kubernetes resources", func() error {
-		_, _, runErr := s.nsx.Run(opts...)
+		_, _, runErr := s.nsx.RunVerbose(func(line string) {
+			job.AppendLog(redact.Message(line))
+		}, opts...)
 		return runErr
 	})
 	if err != nil {
@@ -916,7 +921,11 @@ func (s *Server) runGenerate(ctx context.Context, sess *session.Session, job *se
 	}
 	if sess.Mapping != nil {
 		if data, err := json.MarshalIndent(sess.Mapping, "", "  "); err == nil {
-			_ = os.WriteFile(filepath.Join(sess.GenerationPath, "mapping.json"), data, 0600)
+			// Keep mapping.json out of the generated manifests directory. netpol-analyzer
+			// tries to decode every file there as a Kubernetes object.
+			if mappingPath, pathErr := sess.SafePath("mapping.json"); pathErr == nil {
+				_ = os.WriteFile(mappingPath, data, 0600)
+			}
 		}
 	}
 	job.SetProgress(100, "generation complete")
@@ -945,9 +954,12 @@ func (s *Server) runValidate(ctx context.Context, sess *session.Session, job *se
 		analysisData, _ := os.ReadFile(sess.AnalysisPath)
 		var analysis map[string]any
 		if json.Unmarshal(analysisData, &analysis) == nil {
-			if stdout, ok := analysis["stdout"].(string); ok {
-				nsxConns = compare.ParseNSXConnectivityFromText(stdout)
-			}
+			nsxConns = nsxConnectionsFromAnalysis(analysis)
+		}
+	}
+	if dumpData, readErr := os.ReadFile(sess.DumpPath); readErr == nil {
+		if resources, valErr := nsxadapter.ValidateDump(dumpData); valErr == nil {
+			nsxConns = compare.ExpandUnrestricted(nsxConns, dfwPortHints(nsxadapter.ExtractDFWRules(resources)))
 		}
 	}
 
@@ -1035,6 +1047,52 @@ func generationErrorMessage(err error) string {
 		return "vmware-analyzer could not determine remaining connectivity between some workloads (no default DFW rule). Choose New - Drop, New - Allow, or an existing ANY/ANY default on Generation settings."
 	}
 	return msg
+}
+
+func nsxConnectionsFromAnalysis(analysis map[string]any) []compare.NSXConnection {
+	if raw, ok := analysis["connectivityJson"]; ok {
+		switch v := raw.(type) {
+		case []any:
+			if data, err := json.Marshal(v); err == nil {
+				if conns := compare.ParseNSXConnectivityJSON(data); len(conns) > 0 {
+					return conns
+				}
+			}
+		case string:
+			if conns := compare.ParseNSXConnectivityJSON([]byte(v)); len(conns) > 0 {
+				return conns
+			}
+		}
+	}
+	if stdout, ok := analysis["stdout"].(string); ok {
+		return compare.ParseNSXConnectivityFromText(stdout)
+	}
+	return nil
+}
+
+func dfwPortHints(rules []nsxadapter.DFWRuleView) []compare.PortHint {
+	var hints []compare.PortHint
+	for _, rule := range rules {
+		if !strings.EqualFold(rule.Action, "ALLOW") {
+			continue
+		}
+		for _, sp := range rule.ServicePorts {
+			if sp.Protocol == "" || strings.EqualFold(sp.Protocol, "ALL") {
+				continue
+			}
+			if sp.Ports == "" || strings.EqualFold(sp.Ports, "all") {
+				continue
+			}
+			hints = append(hints, compare.PortHint{
+				Sources:      rule.Sources,
+				Destinations: rule.Destinations,
+				Protocol:     sp.Protocol,
+				Ports:        sp.Ports,
+				RuleID:       rule.ID,
+			})
+		}
+	}
+	return hints
 }
 
 func deriveSegmentsMapping(entries []mapping.SegmentEntry) string {

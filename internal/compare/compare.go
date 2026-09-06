@@ -1,6 +1,7 @@
 package compare
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -341,4 +342,124 @@ func ParseNSXConnectivityFromText(text string) []NSXConnection {
 		})
 	}
 	return conns
+}
+
+// ParseNSXConnectivityJSON parses connectivity JSON from analysis observations.
+func ParseNSXConnectivityJSON(data []byte) []NSXConnection {
+	var edges []struct {
+		Src         string `json:"src"`
+		Dst         string `json:"dst"`
+		Conn        string `json:"conn"`
+		Connections string `json:"connections"`
+	}
+	if err := json.Unmarshal(data, &edges); err != nil {
+		return nil
+	}
+	conns := make([]NSXConnection, 0, len(edges))
+	for _, e := range edges {
+		conn := e.Conn
+		if conn == "" {
+			conn = e.Connections
+		}
+		if e.Src == "" && e.Dst == "" {
+			continue
+		}
+		conns = append(conns, NSXConnection{
+			Source:      e.Src,
+			Destination: e.Dst,
+			Connections: conn,
+		})
+	}
+	return conns
+}
+
+// PortHint is a DFW allow-rule used to expand unrestricted "All Connections" analysis rows.
+type PortHint struct {
+	Sources      []string
+	Destinations []string
+	Protocol     string
+	Ports        string
+	RuleID       int
+}
+
+// ExpandUnrestricted replaces All Connections rows with protocol/port facts from matching DFW hints.
+func ExpandUnrestricted(conns []NSXConnection, hints []PortHint) []NSXConnection {
+	if len(hints) == 0 {
+		return conns
+	}
+	out := make([]NSXConnection, 0, len(conns))
+	for _, c := range conns {
+		if !isUnrestrictedConn(c.Connections) {
+			out = append(out, c)
+			continue
+		}
+		expanded := false
+		for _, hint := range hints {
+			if hint.Protocol == "" || strings.EqualFold(hint.Protocol, "ALL") {
+				continue
+			}
+			if hint.Ports == "" || strings.EqualFold(hint.Ports, "all") {
+				continue
+			}
+			if !endpointMatchesHint(hint.Sources, c.Source) || !endpointMatchesHint(hint.Destinations, c.Destination) {
+				continue
+			}
+			out = append(out, NSXConnection{
+				Source:      c.Source,
+				Destination: c.Destination,
+				Connections: fmt.Sprintf("%s dst-ports: %s", hint.Protocol, hint.Ports),
+				RuleIDs:     []int{hint.RuleID},
+			})
+			expanded = true
+		}
+		if !expanded {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func isUnrestrictedConn(conn string) bool {
+	conn = strings.TrimSpace(conn)
+	return conn == "" || strings.EqualFold(conn, "All Connections")
+}
+
+func endpointMatchesHint(ruleEndpoints []string, name string) bool {
+	if len(ruleEndpoints) == 0 {
+		return true
+	}
+	for _, endpoint := range ruleEndpoints {
+		if isAnyHint(endpoint) {
+			return true
+		}
+		if namesCompatible(endpoint, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAnyHint(v string) bool {
+	v = strings.TrimSpace(strings.ToUpper(v))
+	return v == "" || v == "ANY" || strings.HasSuffix(v, "/GROUPS/ANY")
+}
+
+func namesCompatible(ruleName, vmName string) bool {
+	r := strings.ToLower(lastPathSegment(ruleName))
+	v := strings.ToLower(strings.TrimSpace(vmName))
+	if r == "" || v == "" {
+		return false
+	}
+	if r == v {
+		return true
+	}
+	return strings.HasPrefix(v, r+"-") || strings.HasPrefix(r, v+"-")
+}
+
+func lastPathSegment(path string) string {
+	path = strings.TrimSpace(path)
+	if i := strings.LastIndex(path, "/"); i >= 0 && i < len(path)-1 {
+		return path[i+1:]
+	}
+	return path
 }

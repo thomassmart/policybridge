@@ -1,4 +1,4 @@
-import type { ConnectivityEdge, DFWRule, EndpointFlow, FlowDetail } from './types';
+import type { ConnectivityEdge, DFWRule, EndpointFlow, FlowDetail, ServicePort } from './types';
 
 export function isAllConnections(conn?: string): boolean {
   const raw = String(conn || '').trim();
@@ -65,7 +65,57 @@ function parseClause(part: string): FlowDetail[] | FlowDetail | null {
     return ruleFlowDetail(undefined, ruleService[1].trim(), ruleService[2].trim(), part);
   }
 
+  if (part.includes('·') || /^(?:.+)\s+(TCP|UDP|SCTP)\//i.test(part)) {
+    return ruleFlowDetail(undefined, undefined, part, part);
+  }
+
   return { protocol: 'OTHER', ports: part, raw: part };
+}
+
+function splitServiceToken(token: string): { service: string; protocol?: string; ports?: string } {
+  const trimmed = token.trim();
+  if (!trimmed) return { service: '' };
+
+  const dotted = trimmed.split(/\s*·\s*/).map((p) => p.trim()).filter(Boolean);
+  if (dotted.length >= 2) {
+    const service = dotted[0];
+    const rest = dotted.slice(1).join(' · ');
+    const parsed = parseProtocolPort(rest);
+    if (parsed) return { service, protocol: parsed.protocol, ports: parsed.ports };
+    return { service, ports: rest };
+  }
+
+  const spaced = trimmed.match(/^(.+?)\s+((?:TCP|UDP|SCTP|ICMPV6|ICMPV4|ICMP)\s*\/\s*.+)$/i);
+  if (spaced) {
+    const parsed = parseProtocolPort(spaced[2]);
+    if (parsed) return { service: spaced[1].trim(), protocol: parsed.protocol, ports: parsed.ports };
+  }
+
+  return { service: trimmed };
+}
+
+function parseProtocolPort(value: string): { protocol: string; ports: string } | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  const slash = raw.match(/^(TCP|UDP|SCTP|ICMPV6|ICMPV4|ICMP)\s*\/\s*(.+)$/i);
+  if (slash) {
+    return { protocol: normalizeProtocol(slash[1]), ports: slash[2].trim() };
+  }
+  const spaced = raw.match(/^(TCP|UDP|SCTP|ICMPV6|ICMPV4|ICMP)\s+(.*)$/i);
+  if (spaced) {
+    return { protocol: normalizeProtocol(spaced[1]), ports: spaced[2].trim() || '—' };
+  }
+  if (/^(TCP|UDP|SCTP|ICMPV6|ICMPV4|ICMP)$/i.test(raw)) {
+    return { protocol: normalizeProtocol(raw), ports: '—' };
+  }
+  return null;
+}
+
+function normalizeProtocol(protocol: string): string {
+  const upper = protocol.toUpperCase();
+  if (upper === 'ICMPV6') return 'ICMPv6';
+  if (upper === 'ICMPV4' || upper === 'ICMP') return 'ICMP';
+  return upper;
 }
 
 function ruleFlowDetail(
@@ -74,17 +124,25 @@ function ruleFlowDetail(
   service: string,
   raw: string,
 ): FlowDetail {
-  const svc = service.trim();
-  const upper = svc.toUpperCase();
-  let protocol = 'SVC';
-  if (['HTTP', 'HTTPS', 'SSH', 'DNS', 'NTP', 'SMB', 'ICMP'].includes(upper)) {
-    protocol = upper;
-  } else if (/^any$/i.test(svc)) {
-    protocol = 'ALL';
+  const parsed = splitServiceToken(service);
+  const svc = parsed.service;
+  if (/^any$/i.test(svc)) {
+    return {
+      protocol: 'ALL',
+      ports: 'all',
+      raw,
+      policy: policy?.trim() || undefined,
+      rule: rule?.trim() || undefined,
+      service: 'Any',
+    };
   }
+
+  const known = WELL_KNOWN_BY_NAME[svc.toUpperCase()];
+  const protocol = parsed.protocol || known?.protocol || 'SVC';
+  const ports = parsed.ports || known?.ports || svc;
   return {
     protocol,
-    ports: svc,
+    ports,
     raw,
     policy: policy?.trim() || undefined,
     rule: rule?.trim() || undefined,
@@ -132,32 +190,89 @@ const WELL_KNOWN_SERVICES: Record<string, string> = {
   '8443': 'HTTPS',
 };
 
-/** Short on-map label: HTTPS, SSH, TCP/8081, Any. */
-export function flowServiceLabel(flow: FlowDetail): string {
-  const namedService = flow.service?.trim();
-  if (namedService) {
-    return /^any$/i.test(namedService) ? 'Any' : namedService;
-  }
-  if (flow.protocol === 'ALL') return 'Any';
-  if (flow.protocol === 'ICMP') return 'ICMP';
-  if (['HTTP', 'HTTPS', 'SSH', 'DNS', 'NTP', 'SMB', 'LDAP', 'RDP'].includes(flow.protocol)) {
-    return flow.protocol;
-  }
+const WELL_KNOWN_BY_NAME: Record<string, { protocol: string; ports: string }> = {
+  HTTP: { protocol: 'TCP', ports: '80' },
+  HTTPS: { protocol: 'TCP', ports: '443' },
+  SSH: { protocol: 'TCP', ports: '22' },
+  DNS: { protocol: 'UDP', ports: '53' },
+  NTP: { protocol: 'UDP', ports: '123' },
+  SMB: { protocol: 'TCP', ports: '445' },
+  LDAP: { protocol: 'TCP', ports: '389' },
+  LDAPS: { protocol: 'TCP', ports: '636' },
+  RDP: { protocol: 'TCP', ports: '3389' },
+  SQL: { protocol: 'TCP', ports: '1433' },
+  MYSQL: { protocol: 'TCP', ports: '3306' },
+  POSTGRESQL: { protocol: 'TCP', ports: '5432' },
+  REDIS: { protocol: 'TCP', ports: '6379' },
+  ICMP: { protocol: 'ICMP', ports: '—' },
+};
 
-  const port = String(flow.ports || '')
+function firstPort(ports?: string): string {
+  return String(ports || '')
     .replace(/^dst-ports:\s*/i, '')
     .split(/[,\s]/)[0]
     ?.trim();
-  if (port && WELL_KNOWN_SERVICES[port]) {
-    return WELL_KNOWN_SERVICES[port];
+}
+
+function formatL4(protocol: string, ports?: string): string {
+  const proto = normalizeProtocol(protocol);
+  const p = String(ports || '')
+    .replace(/^dst-ports:\s*/i, '')
+    .trim();
+  if (proto === 'ICMP' || proto === 'ICMPv6') {
+    if (!p || p === '—' || p === 'all') return proto;
+    if (/^ICMP/i.test(p)) return p;
+    return `${proto} ${p}`;
   }
-  if (flow.protocol === 'OTHER') {
+  if (/^(TCP|UDP|SCTP)\//i.test(p)) return p;
+  if (!p || p === 'all' || p === '—') return proto;
+  return `${proto}/${p}`;
+}
+
+export function formatProtocolPort(protocol?: string, ports?: string): string | null {
+  const raw = (protocol || '').trim();
+  if (!raw) return null;
+  const proto = raw.toUpperCase();
+  if (proto === 'ALL' || proto === 'OTHER' || proto === 'SVC') return null;
+  const known = WELL_KNOWN_BY_NAME[proto];
+  if (known && (!ports || ports.toUpperCase() === proto || ports === known.ports)) {
+    return formatL4(known.protocol, known.ports);
+  }
+  return formatL4(raw, ports);
+}
+
+export function formatServiceToken(name?: string, protocol?: string, ports?: string): string {
+  const service = (name || '').trim();
+  if (service && /^any$/i.test(service)) return 'Any';
+
+  const protoPort = formatProtocolPort(protocol, ports);
+  const known = service ? WELL_KNOWN_BY_NAME[service.toUpperCase()] : undefined;
+  const knownPP = known ? formatL4(known.protocol, known.ports) : null;
+
+  if (service && protoPort) {
+    if (service.toUpperCase() === (protocol || '').toUpperCase()) {
+      return knownPP ? `${service} · ${knownPP}` : protoPort;
+    }
+    if (service.toUpperCase() === protoPort.toUpperCase()) return protoPort;
+    return `${service} · ${protoPort}`;
+  }
+  if (service) return knownPP ? `${service} · ${knownPP}` : service;
+  if (protoPort) {
+    const mapped = WELL_KNOWN_SERVICES[firstPort(ports)];
+    if (mapped && mapped.toUpperCase() !== protoPort.toUpperCase()) {
+      return `${mapped} · ${protoPort}`;
+    }
+    return protoPort;
+  }
+  return 'Any';
+}
+
+/** On-map and drawer label: HTTPS · TCP/443, SSH · TCP/22, TCP/8081, Any. */
+export function flowServiceLabel(flow: FlowDetail): string {
+  if (!flow.service && flow.protocol === 'OTHER') {
     return flow.ports || flow.raw || 'Other';
   }
-  if (port && port !== '—' && port !== 'all') {
-    return `${flow.protocol}/${port}`;
-  }
-  return flow.protocol || 'Any';
+  return formatServiceToken(flow.service, flow.protocol, flow.ports);
 }
 
 export function edgeServiceLabel(conn?: string): string {
@@ -166,9 +281,31 @@ export function edgeServiceLabel(conn?: string): string {
   return [...new Set(flows.map(flowServiceLabel))].join(', ');
 }
 
+export function compactEdgeLabel(conn?: string, maxItems = 2, maxChars = 42): string {
+  const labels = [...new Set(parseConnDetail(conn).map(flowServiceLabel))];
+  if (!labels.length) return 'Any';
+  let text =
+    labels.length <= maxItems
+      ? labels.join(', ')
+      : `${labels.slice(0, maxItems).join(', ')} +${labels.length - maxItems}`;
+  if (text.length > maxChars) {
+    return `${text.slice(0, maxChars - 1)}…`;
+  }
+  return text;
+}
+
+export function formatRuleServices(rule: { services?: string[]; servicePorts?: ServicePort[] }): string {
+  if (rule.servicePorts?.length) {
+    return [...new Set(rule.servicePorts.map((sp) => formatServiceToken(sp.name, sp.protocol, sp.ports)))].join(', ');
+  }
+  return (rule.services || []).map((name) => formatServiceToken(name)).join(', ');
+}
+
 export function flowPillLabel(flow: FlowDetail): string {
-  const structured = formatRuleFlowLabel(flow.policy, flow.rule, flow.service);
-  if (structured) return structured;
+  if (flow.policy || flow.rule) {
+    return formatRuleFlowLabel(flow.policy, flow.rule, flowServiceLabel(flow));
+  }
+  if (flow.service) return flowServiceLabel(flow);
 
   if (flow.protocol === 'ALL') return 'ALL';
   if (flow.protocol === 'ICMP') return 'ICMP';
@@ -220,8 +357,8 @@ function endpointMatches(ruleEndpoints: string[] | undefined, vmName: string): b
   });
 }
 
-function serviceToFlow(service: string, rule?: DFWRule): FlowDetail {
-  const svc = service.trim();
+function servicePortToFlow(sp: ServicePort, rule?: DFWRule): FlowDetail {
+  const svc = (sp.name || '').trim() || 'Service';
   const ruleName = rule?.name?.trim();
   const policy = rule?.policy?.trim();
 
@@ -236,16 +373,13 @@ function serviceToFlow(service: string, rule?: DFWRule): FlowDetail {
     };
   }
 
-  const upper = svc.toUpperCase();
-  let protocol = 'SVC';
-  if (['HTTP', 'HTTPS', 'SSH', 'DNS', 'NTP', 'SMB', 'ICMP'].includes(upper)) {
-    protocol = upper;
-  }
-
+  const known = WELL_KNOWN_BY_NAME[svc.toUpperCase()];
+  const protocol = sp.protocol || known?.protocol || 'SVC';
+  const ports = sp.ports || known?.ports || svc;
   return {
     protocol,
-    ports: svc,
-    raw: formatRuleFlowLabel(policy, ruleName, svc),
+    ports,
+    raw: formatRuleFlowLabel(policy, ruleName, formatServiceToken(svc, protocol, ports)),
     policy,
     rule: ruleName,
     service: svc,
@@ -264,9 +398,11 @@ export function enrichEdgesFromDFW(edges: ConnectivityEdge[], rules?: DFWRule[])
       if (!endpointMatches(rule.sources, edge.src) || !endpointMatches(rule.destinations, edge.dst)) {
         continue;
       }
-      const services = rule.services?.length ? rule.services : ['Any'];
-      for (const service of services) {
-        matchingFlows.push(serviceToFlow(service, rule));
+      const ports = rule.servicePorts?.length
+        ? rule.servicePorts
+        : (rule.services?.length ? rule.services : ['Any']).map((name) => ({ name }));
+      for (const sp of ports) {
+        matchingFlows.push(servicePortToFlow(sp, rule));
       }
     }
 

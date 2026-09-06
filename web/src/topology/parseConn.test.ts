@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   aggregateEndpointFlows,
   collapseEdgesByPair,
+  compactEdgeLabel,
   edgeServiceLabel,
   enrichEdgesFromDFW,
   expandEdges,
   flowPillLabel,
   flowServiceLabel,
+  formatRuleServices,
   parseConnDetail,
   prepareGraphEdges,
 } from './parseConn';
@@ -30,6 +32,17 @@ describe('parseConnDetail', () => {
   it('returns ALL for unrestricted connections', () => {
     const flows = parseConnDetail('All Connections');
     expect(flows).toEqual([{ protocol: 'ALL', ports: 'all', raw: 'All Connections' }]);
+  });
+
+  it('parses service · protocol/port labels', () => {
+    const flows = parseConnDetail('Fleet-Management | allow-https | HTTPS · TCP/443');
+    expect(flows).toMatchObject([{
+      protocol: 'TCP',
+      ports: '443',
+      service: 'HTTPS',
+      policy: 'Fleet-Management',
+      rule: 'allow-https',
+    }]);
   });
 });
 
@@ -58,7 +71,21 @@ describe('enrichEdgesFromDFW', () => {
       }],
     );
     expect(enriched).toHaveLength(1);
-    expect(enriched[0].conn).toBe('Fleet-Management | allow-web-to-db-ssh | SSH');
+    expect(enriched[0].conn).toBe('Fleet-Management | allow-web-to-db-ssh | SSH · TCP/22');
+  });
+
+  it('uses DFW servicePorts protocol and destination ports', () => {
+    const enriched = enrichEdgesFromDFW(
+      [{ src: 'web', dst: 'api', conn: 'All Connections' }],
+      [{
+        action: 'ALLOW',
+        sources: ['web'],
+        destinations: ['api'],
+        services: ['HTTPS'],
+        servicePorts: [{ name: 'HTTPS', protocol: 'TCP', ports: '443' }],
+      }],
+    );
+    expect(enriched[0].conn).toBe('HTTPS · TCP/443');
   });
 });
 
@@ -75,19 +102,28 @@ describe('aggregateEndpointFlows', () => {
 });
 
 describe('flowServiceLabel', () => {
-  it('uses the DFW service name when present', () => {
+  it('shows protocol and port next to the DFW service name', () => {
+    expect(flowServiceLabel({
+      protocol: 'TCP',
+      ports: '443',
+      raw: 'Fleet | allow-web | HTTPS · TCP/443',
+      service: 'HTTPS',
+    })).toBe('HTTPS · TCP/443');
+  });
+
+  it('maps well-known names to protocol and port', () => {
     expect(flowServiceLabel({
       protocol: 'SVC',
       ports: 'HTTPS',
       raw: 'Fleet | allow-web | HTTPS',
       service: 'HTTPS',
-    })).toBe('HTTPS');
+    })).toBe('HTTPS · TCP/443');
   });
 
-  it('maps well-known TCP ports to service names', () => {
-    expect(flowServiceLabel({ protocol: 'TCP', ports: '443', raw: '' })).toBe('HTTPS');
-    expect(flowServiceLabel({ protocol: 'TCP', ports: '80', raw: '' })).toBe('HTTP');
-    expect(flowServiceLabel({ protocol: 'TCP', ports: '22', raw: '' })).toBe('SSH');
+  it('maps well-known TCP ports to service names and keeps protocol/port', () => {
+    expect(flowServiceLabel({ protocol: 'TCP', ports: '443', raw: '' })).toBe('HTTPS · TCP/443');
+    expect(flowServiceLabel({ protocol: 'TCP', ports: '80', raw: '' })).toBe('HTTP · TCP/80');
+    expect(flowServiceLabel({ protocol: 'TCP', ports: '22', raw: '' })).toBe('SSH · TCP/22');
   });
 
   it('falls back to protocol/port for unknown ports', () => {
@@ -96,12 +132,30 @@ describe('flowServiceLabel', () => {
 });
 
 describe('edgeServiceLabel', () => {
-  it('returns HTTPS for a DFW service string', () => {
-    expect(edgeServiceLabel('Fleet-Management | allow-web-to-db-ssh | SSH')).toBe('SSH');
+  it('returns SSH with TCP/22 for a DFW service string', () => {
+    expect(edgeServiceLabel('Fleet-Management | allow-web-to-db-ssh | SSH')).toBe('SSH · TCP/22');
   });
 
-  it('returns HTTPS for TCP 443', () => {
-    expect(edgeServiceLabel('TCP dst-ports: 443')).toBe('HTTPS');
+  it('returns HTTPS · TCP/443 for TCP 443', () => {
+    expect(edgeServiceLabel('TCP dst-ports: 443')).toBe('HTTPS · TCP/443');
+  });
+});
+
+describe('compactEdgeLabel', () => {
+  it('joins two services and summarizes extras', () => {
+    expect(compactEdgeLabel('HTTP · TCP/80; HTTPS · TCP/443')).toBe('HTTP · TCP/80, HTTPS · TCP/443');
+    expect(compactEdgeLabel('HTTP · TCP/80; HTTPS · TCP/443; SSH · TCP/22')).toBe(
+      'HTTP · TCP/80, HTTPS · TCP/443 +1',
+    );
+  });
+});
+
+describe('formatRuleServices', () => {
+  it('formats backend servicePorts for tables', () => {
+    expect(formatRuleServices({
+      services: ['HTTPS'],
+      servicePorts: [{ name: 'HTTPS', protocol: 'TCP', ports: '443' }],
+    })).toBe('HTTPS · TCP/443');
   });
 });
 
@@ -112,13 +166,13 @@ describe('flowPillLabel', () => {
 
   it('formats policy, rule, and service', () => {
     expect(flowPillLabel({
-      protocol: 'HTTP',
-      ports: 'HTTP',
-      raw: 'Fleet-Management | allow-users-to-web-http | HTTP',
+      protocol: 'TCP',
+      ports: '80',
+      raw: 'Fleet-Management | allow-users-to-web-http | HTTP · TCP/80',
       policy: 'Fleet-Management',
       rule: 'allow-users-to-web-http',
       service: 'HTTP',
-    })).toBe('Fleet-Management | allow-users-to-web-http | HTTP');
+    })).toBe('Fleet-Management | allow-users-to-web-http | HTTP · TCP/80');
   });
 
   it('parses legacy rule: service strings', () => {

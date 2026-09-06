@@ -20,6 +20,12 @@ export interface EndpointFlow {
   edgeIndex: number;
 }
 
+export interface ServicePort {
+  name: string;
+  protocol?: string;
+  ports?: string;
+}
+
 export interface DFWRule {
   id?: number;
   name?: string;
@@ -27,6 +33,7 @@ export interface DFWRule {
   sources?: string[];
   destinations?: string[];
   services?: string[];
+  servicePorts?: ServicePort[];
   action?: string;
 }
 

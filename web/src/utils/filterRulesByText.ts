@@ -13,6 +13,9 @@ export function filterRulesByText(rules: DFWRuleRow[], filter: string): DFWRuleR
       (r.sources || []).join(' '),
       (r.destinations || []).join(' '),
       (r.services || []).join(' '),
+      (r.servicePorts || [])
+        .flatMap((sp) => [sp.name, sp.protocol, sp.ports])
+        .join(' '),
     ]
       .join(' ')
       .toLowerCase()

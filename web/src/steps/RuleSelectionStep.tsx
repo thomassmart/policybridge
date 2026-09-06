@@ -15,6 +15,7 @@ import { AnalysisFilterInput } from '@/components/AnalysisFilterInput';
 import { buildAnalysisFilterSuggestions } from '@/utils/analysisFilterSuggestions';
 import { filterRulesByText } from '@/utils/filterRulesByText';
 import { parseConnectivity } from '@/utils/parseConnectivity';
+import { formatRuleServices } from '@/topology/parseConn';
 
 export function RuleSelectionStep() {
   const {
@@ -178,7 +179,7 @@ export function RuleSelectionStep() {
                 <Td>{rule.policy}</Td>
                 <Td>{(rule.sources || []).join(', ')}</Td>
                 <Td>{(rule.destinations || []).join(', ')}</Td>
-                <Td>{(rule.services || []).join(', ')}</Td>
+                <Td>{formatRuleServices(rule)}</Td>
                 <Td>{rule.action}</Td>
               </Tr>
             ))}

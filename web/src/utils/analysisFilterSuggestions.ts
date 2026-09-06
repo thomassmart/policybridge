@@ -50,6 +50,12 @@ export function buildAnalysisFilterSuggestions(
     (rule.sources || []).forEach((s) => addSuggestion(map, s, 'Endpoint'));
     (rule.destinations || []).forEach((d) => addSuggestion(map, d, 'Endpoint'));
     (rule.services || []).forEach((s) => addSuggestion(map, s, 'Service'));
+    (rule.servicePorts || []).forEach((sp) => {
+      addSuggestion(map, sp.name, 'Service');
+      if (sp.protocol && sp.ports) {
+        addSuggestion(map, `${sp.protocol}/${sp.ports}`, 'Service');
+      }
+    });
   });
 
   edges.forEach((edge) => {

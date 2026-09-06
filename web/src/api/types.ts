@@ -35,6 +35,12 @@ export interface Job {
   logs?: string[];
 }
 
+export interface ServicePort {
+  name: string;
+  protocol?: string;
+  ports?: string;
+}
+
 export interface DFWRuleRow {
   id?: number;
   name?: string;
@@ -43,6 +49,7 @@ export interface DFWRuleRow {
   sources?: string[];
   destinations?: string[];
   services?: string[];
+  servicePorts?: ServicePort[];
   action?: string;
   selected?: boolean;
 }

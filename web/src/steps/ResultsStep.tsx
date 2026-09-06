@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionToggle,
+  Alert,
   AlertActionLink,
   Button,
   Card,
@@ -34,6 +39,7 @@ export function ResultsStep() {
   } = useSession();
 
   const startedRef = useRef(false);
+  const [validationOpen, setValidationOpen] = useState(false);
 
   const startGeneration = useCallback(() => {
     startedRef.current = true;
@@ -59,7 +65,7 @@ export function ResultsStep() {
           Results
         </Title>
         <p style={{ marginTop: 8, color: 'var(--pf-t--global--text--color--subtle)' }}>
-          Generated Kubernetes resources and NSX connectivity comparison.
+          Generated Kubernetes resources from the selected NSX rules.
         </p>
       </StackItem>
 
@@ -147,53 +153,75 @@ export function ResultsStep() {
 
       {validation ? (
         <StackItem>
-          <Title headingLevel="h2" size="lg">
-            Validation against NSX intent
-          </Title>
-          <div style={{ marginTop: 8 }}>
-            <StatTiles
-              items={[
-                { label: 'Exact Matches', value: cmp.exact || 0, tone: 'green' },
-                { label: 'Missing', value: cmp.missing || 0, tone: 'red' },
-                { label: 'Additional', value: cmp.additional || 0, tone: 'orange' },
-                { label: 'Uncomparable', value: cmp.uncomparable || 0, tone: 'grey' },
-              ]}
-            />
-          </div>
-          {findings.length ? (
-            <Table aria-label="Comparison findings" variant="compact" style={{ marginTop: 16 }}>
-              <Thead>
-                <Tr>
-                  <Th>Category</Th>
-                  <Th>Source</Th>
-                  <Th>Destination</Th>
-                  <Th>Protocol</Th>
-                  <Th>Ports</Th>
-                  <Th>Severity</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {findings.map((f, i) => (
-                  <Tr key={`${displayFindingValue(f.category)}-${i}`}>
-                    <Td>
-                      <Label>{displayFindingValue(f.category)}</Label>
-                    </Td>
-                    <Td>{displayFindingValue(f.sourceIdentity)}</Td>
-                    <Td>{displayFindingValue(f.destinationIdentity)}</Td>
-                    <Td>{displayFindingValue(f.protocol)}</Td>
-                    <Td>{displayFindingValue(f.portRange)}</Td>
-                    <Td>{displayFindingValue(f.severity)}</Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          ) : (
-            <DismissibleAlert variant="success" title="No differences found" isInline style={{ marginTop: 12 }} />
-          )}
-          <DismissibleAlert variant="info" title="Comparison note" isInline style={{ marginTop: 12 }}>
-            Comparison validates connectivity overlap, not semantic policy equivalence. Review
-            uncomparable items for known limitations.
-          </DismissibleAlert>
+          <Accordion>
+            <AccordionItem isExpanded={validationOpen}>
+              <AccordionToggle
+                id="results-validation-toggle"
+                onClick={() => setValidationOpen((open) => !open)}
+              >
+                Validation against NSX intent
+              </AccordionToggle>
+              <AccordionContent id="results-validation-content">
+                <Stack hasGutter>
+                  <StackItem>
+                    <Alert variant="warning" title="Work in progress" isInline>
+                      This area is a work in progress.
+                    </Alert>
+                  </StackItem>
+                  <StackItem>
+                    <StatTiles
+                      items={[
+                        { label: 'Exact Matches', value: cmp.exact || 0, tone: 'green' },
+                        { label: 'Missing', value: cmp.missing || 0, tone: 'red' },
+                        { label: 'Additional', value: cmp.additional || 0, tone: 'orange' },
+                        { label: 'Uncomparable', value: cmp.uncomparable || 0, tone: 'grey' },
+                      ]}
+                    />
+                  </StackItem>
+                  {findings.length ? (
+                    <StackItem>
+                      <Table aria-label="Comparison findings" variant="compact">
+                        <Thead>
+                          <Tr>
+                            <Th>Category</Th>
+                            <Th>Source</Th>
+                            <Th>Destination</Th>
+                            <Th>Protocol</Th>
+                            <Th>Ports</Th>
+                            <Th>Severity</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {findings.map((f, i) => (
+                            <Tr key={`${displayFindingValue(f.category)}-${i}`}>
+                              <Td>
+                                <Label>{displayFindingValue(f.category)}</Label>
+                              </Td>
+                              <Td>{displayFindingValue(f.sourceIdentity)}</Td>
+                              <Td>{displayFindingValue(f.destinationIdentity)}</Td>
+                              <Td>{displayFindingValue(f.protocol)}</Td>
+                              <Td>{displayFindingValue(f.portRange)}</Td>
+                              <Td>{displayFindingValue(f.severity)}</Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </StackItem>
+                  ) : (
+                    <StackItem>
+                      <DismissibleAlert variant="success" title="No differences found" isInline />
+                    </StackItem>
+                  )}
+                  <StackItem>
+                    <DismissibleAlert variant="info" title="Comparison note" isInline>
+                      Comparison validates connectivity overlap, not semantic policy equivalence. Review
+                      uncomparable items for known limitations.
+                    </DismissibleAlert>
+                  </StackItem>
+                </Stack>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </StackItem>
       ) : null}
     </Stack>

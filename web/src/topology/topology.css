@@ -66,3 +66,20 @@
 .pf-topology--react .pf-topology__edge__link {
   fill: none;
 }
+
+.pf-topology--react .pb-topology__edge-label {
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  fill: #1f2a37;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.94);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.pf-topology--react .pf-topology__edge.pf-m-hover .pb-topology__edge-label,
+.pf-topology--react .pf-topology__edge.pf-m-selected .pb-topology__edge-label {
+  fill: #002952;
+}

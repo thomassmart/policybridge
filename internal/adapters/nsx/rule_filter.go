@@ -90,6 +90,9 @@ func PrepareDumpForGeneration(resources *collector.ResourcesContainerModel, sele
 	if err := applyDefaultRule(&filtered, spec); err != nil {
 		return nil, err
 	}
+	ensureRuleDefaults(&filtered)
+	ensureResolvableGroups(&filtered)
+	ensureResolvableServices(&filtered)
 	return &filtered, nil
 }
 
@@ -122,6 +125,7 @@ func keepSelectedRules(resources *collector.ResourcesContainerModel, selectedIDs
 				clearPolicyDefault(resources, di, pi)
 			}
 		}
+		pruneEmptyPolicies(resources, di)
 	}
 	if !foundExisting {
 		return fmt.Errorf("default rule %d was not found in the NSX configuration", spec.RuleID)
@@ -249,6 +253,20 @@ func clearPolicyDefault(resources *collector.ResourcesContainerModel, di, pi int
 	resources.DomainList[di].Resources.SecurityPolicyList[pi].DefaultRule = nil
 	resources.DomainList[di].Resources.SecurityPolicyList[pi].DefaultRuleId = nil
 	resources.DomainList[di].Resources.SecurityPolicyList[pi].ConnectivityPreference = &none
+}
+
+func pruneEmptyPolicies(resources *collector.ResourcesContainerModel, di int) {
+	if resources == nil || di < 0 || di >= len(resources.DomainList) {
+		return
+	}
+	policies := resources.DomainList[di].Resources.SecurityPolicyList
+	kept := policies[:0]
+	for i := range policies {
+		if len(policies[i].Rules) > 0 {
+			kept = append(kept, policies[i])
+		}
+	}
+	resources.DomainList[di].Resources.SecurityPolicyList = kept
 }
 
 func isGlobalCatchAll(rule collector.Rule, action string) bool {

@@ -20,6 +20,7 @@ import { preserveScrollPosition } from '@/utils/preserveScroll';
 import { buildAnalysisFilterSuggestions } from '@/utils/analysisFilterSuggestions';
 import { filterRulesByText } from '@/utils/filterRulesByText';
 import { parseConnectivity } from '@/utils/parseConnectivity';
+import { formatRuleServices } from '@/topology/parseConn';
 
 const DFW_CATEGORIES = ['Ethernet', 'Emergency', 'Infrastructure', 'Environment', 'Application'] as const;
 
@@ -193,7 +194,7 @@ export function AnalysisView({ analysis }: AnalysisViewProps) {
                     <Td>{r.category}</Td>
                     <Td>{(r.sources || []).join(', ')}</Td>
                     <Td>{(r.destinations || []).join(', ')}</Td>
-                    <Td>{(r.services || []).join(', ')}</Td>
+                    <Td>{formatRuleServices(r)}</Td>
                     <Td>{r.action}</Td>
                   </Tr>
                 ))}

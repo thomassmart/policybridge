@@ -289,7 +289,7 @@ export const ConnectivityGraph = memo(function ConnectivityGraph({
             Focused on <strong>{focusNode}</strong>. Click the background or press Esc to reset.
           </>
         ) : (
-          'Click an endpoint to focus traffic. Click a connection for allowed services. Cola layout is used by default; use the control bar to switch to Dagre, zoom, or fit.'
+          'Click an endpoint to focus traffic. Connection labels show service and protocol/port. Click a connection for the full list. Cola layout is used by default; use the control bar to switch to Dagre, zoom, or fit.'
         )}
       </p>
     </div>
