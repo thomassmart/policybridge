@@ -42,8 +42,8 @@ Images are published to GitHub Container Registry from `main` and version tags.
 # Authenticate (required for a private package)
 echo "$GITHUB_TOKEN" | podman login ghcr.io -u USERNAME --password-stdin
 
-podman pull ghcr.io/<owner>/policybridge:latest
-podman run --rm -p 127.0.0.1:8080:8080 ghcr.io/<owner>/policybridge:latest
+podman pull ghcr.io/thomassmart/policybridge:latest
+podman run --rm -p 127.0.0.1:8080:8080 ghcr.io/thomassmart/policybridge:latest
 ```
 
 ## Pinned dependencies
