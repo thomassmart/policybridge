@@ -103,6 +103,36 @@ with `InsecureSkipVerify` when certificate verification fails. PolicyBridge
 - Custom CA certificates are **not supported** by the upstream collector. Only
   the system trust store is used. No CA upload field is provided.
 
+## Segments are not OpenShift namespaces
+
+vmware-analyzer synthesises one Kubernetes namespace per NSX segment (using the
+segment display name, e.g. `Seg-Web`). Those names are **not** OpenShift projects
+unless you deliberately create them.
+
+On the Generate step, set **OpenShift project** to the real project that hosts the
+workloads (for a single-project UDN lab this applies to every NSX segment, e.g.
+`tom-testing`). After synthesis PolicyBridge:
+
+1. Rewrites Namespace / UDN / NetworkPolicy `metadata.namespace` and peer
+   `namespaceSelector` values from segment names to your Target namespace.
+2. Normalises peers for NSX intent:
+   - Source or destination `ANY` / `*` → omit `from` / `to` (ports-only or empty
+     allow rule), instead of a hard-coded list of `Seg-*` namespaces.
+   - Tag/group peers in a single-project import → same-namespace `podSelector`
+     only (`Exists` on `tag__…` / `group__…`), without a segment
+     `namespaceSelector`.
+
+Multi-project imports that map segments to different Target namespaces keep a
+remapped `namespaceSelector` when the peer project differs from the policy
+namespace.
+
+Security labels used by synthesised NetworkPolicies must select running pods.
+For KubeVirt VMs, put labels on `spec.template.metadata.labels` (the
+virt-launcher), not only on the `VirtualMachine` object metadata.
+
+Golden before/after peer examples for a Fleet-style single-project import live in
+`testdata/mapping/peers_before.yaml` and `testdata/mapping/peers_after.yaml`.
+
 ## Synthesis limitations
 
 - Flattening prioritized allow/deny/jump-to-app rules into flat allow rules is

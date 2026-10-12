@@ -391,7 +391,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadMapping = useCallback(async () => {
-    if (!sessionId || mapping) return;
+    if (!sessionId) return;
+    // Refresh when unset or when segments were dropped (partial save / stale state).
+    if (mapping && mapping.segments?.length) return;
     const m = await api<MappingConfig>('GET', `/sessions/${sessionId}/mapping`);
     setMapping(m);
   }, [sessionId, mapping]);

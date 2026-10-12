@@ -6,9 +6,8 @@ import { WizardFooterActions } from '@/components/WizardFooterActions';
 import { SessionProvider, useSession } from '@/context/SessionContext';
 import { SourceStep } from '@/steps/SourceStep';
 import { IntentStep } from '@/steps/IntentStep';
-import { MappingStep } from '@/steps/MappingStep';
 import { RuleSelectionStep } from '@/steps/RuleSelectionStep';
-import { GenerationStep } from '@/steps/GenerationStep';
+import { GenerateStep } from '@/steps/GenerateStep';
 import { ResultsStep } from '@/steps/ResultsStep';
 import { ExportStep } from '@/steps/ExportStep';
 
@@ -41,11 +40,8 @@ function PolicyBridgeWizard() {
             <WizardStep name="Rule selection" id="rules">
               <RuleSelectionStep />
             </WizardStep>
-            <WizardStep name="Mapping" id="mapping">
-              <MappingStep />
-            </WizardStep>
-            <WizardStep name="Generation settings" id="generation">
-              <GenerationStep />
+            <WizardStep name="Generate" id="generate">
+              <GenerateStep />
             </WizardStep>
             <WizardStep name="Results" id="results">
               <ResultsStep />

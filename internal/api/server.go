@@ -329,6 +329,10 @@ func (s *Server) handleExportLabelPatch(w http.ResponseWriter, r *http.Request) 
 	opts := mapping.DefaultPatchOptions()
 	if ns := r.URL.Query().Get("namespace"); ns != "" {
 		opts.Namespace = ns
+	} else if sess.Mapping != nil {
+		if mapped := mapping.PreferredPatchNamespace(sess.Mapping.Segments); mapped != "" {
+			opts.Namespace = mapped
+		}
 	}
 	if rt := r.URL.Query().Get("resourceType"); rt != "" {
 		opts.ResourceType = rt
@@ -442,8 +446,22 @@ func (s *Server) handlePutMapping(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	sess.Mapping = &cfg
-	writeJSON(w, http.StatusOK, cfg)
+	data, err := os.ReadFile(sess.DumpPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	resources, err := nsxadapter.ValidateDump(data)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	// Merge with scope defaults so a partial/empty PUT cannot drop segment rows
+	// (e.g. Seg-Web) that still exist in the selected-rule mapping scope.
+	defaults := mapping.DefaultConfigForScope(resources, nsxadapter.MappingScopeFromSelection(resources, sess.SelectedRuleIDs))
+	merged := mapping.Merge(cfg, defaults)
+	sess.Mapping = &merged
+	writeJSON(w, http.StatusOK, merged)
 }
 
 func (s *Server) handleGetRuleSelection(w http.ResponseWriter, r *http.Request) {
@@ -920,6 +938,29 @@ func (s *Server) runGenerate(ctx context.Context, sess *session.Session, job *se
 		sess.GenerationPath = genDir
 	}
 	if sess.Mapping != nil {
+		renames := mapping.NamespaceRenameMap(sess.Mapping.Segments)
+		if len(renames) > 0 {
+			job.SetProgress(96, "Applying target namespace mappings")
+			if rewriteErr := mapping.RewriteGeneratedNamespaces(sess.GenerationPath, renames); rewriteErr != nil {
+				job.SetError("namespace rewrite failed: " + rewriteErr.Error())
+				return
+			}
+			for from, to := range renames {
+				job.AppendLog(fmt.Sprintf("namespace mapping: %s -> %s", from, to))
+			}
+		}
+		job.SetProgress(97, "Normalising NetworkPolicy peers")
+		peerStats, peerErr := mapping.RewriteNetworkPolicyPeers(sess.GenerationPath, sess.Mapping.Segments)
+		if peerErr != nil {
+			job.SetError("peer rewrite failed: " + peerErr.Error())
+			return
+		}
+		if peerStats.AnyPeersOmitted > 0 || peerStats.NamespaceSelectorsStripped > 0 {
+			job.AppendLog(fmt.Sprintf(
+				"peer rewrite: omitted %d ANY-like peer(s), stripped %d same-namespace selector(s)",
+				peerStats.AnyPeersOmitted, peerStats.NamespaceSelectorsStripped,
+			))
+		}
 		if data, err := json.MarshalIndent(sess.Mapping, "", "  "); err == nil {
 			// Keep mapping.json out of the generated manifests directory. netpol-analyzer
 			// tries to decode every file there as a Kubernetes object.

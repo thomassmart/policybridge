@@ -4,8 +4,7 @@ const WIZARD_STEPS = [
   'Source',
   'NSX intent',
   'Rule selection',
-  'Mapping',
-  'Generation settings',
+  'Generate',
   'Results',
   'Export',
 ];
@@ -19,8 +18,8 @@ describe('PolicyBridge API client', () => {
 });
 
 describe('Wizard flow', () => {
-  it('defines seven collapsed wizard steps', () => {
-    expect(WIZARD_STEPS).toHaveLength(7);
+  it('defines six collapsed wizard steps', () => {
+    expect(WIZARD_STEPS).toHaveLength(6);
     WIZARD_STEPS.forEach((step) => {
       expect(step.length).toBeGreaterThan(0);
     });

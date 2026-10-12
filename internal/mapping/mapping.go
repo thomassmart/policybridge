@@ -145,7 +145,7 @@ func mergeLabels(existing, defaults []LabelEntry) []LabelEntry {
 	for _, e := range existing {
 		byKey[key(e)] = e
 	}
-	out := make([]LabelEntry, 0, len(defaults))
+	out := make([]LabelEntry, 0, len(defaults)+len(existing))
 	seen := make(map[string]bool, len(defaults))
 	for _, d := range defaults {
 		k := key(d)
@@ -161,6 +161,15 @@ func mergeLabels(existing, defaults []LabelEntry) []LabelEntry {
 			continue
 		}
 		out = append(out, d)
+	}
+	// Keep client-supplied VM workload patches even when the VM is outside the
+	// current rule scope (groups may not list VM members in the dump).
+	for _, e := range existing {
+		k := key(e)
+		if seen[k] || e.Kind != IdentityVM {
+			continue
+		}
+		out = append(out, e)
 	}
 	return out
 }
@@ -203,7 +212,8 @@ func scopedSegments(resources *collector.ResourcesContainerModel, scope Scope) [
 			SegmentID:   id,
 			SegmentName: name,
 			TargetKind:  TargetUDN,
-			TargetName:  sanitizeName(name),
+			// Default to the namespace vmware-analyzer synthesises so unchanged rows are no-ops.
+			TargetName: SynthesizedNamespace(name),
 		})
 	}
 	return out

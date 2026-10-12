@@ -1,0 +1,94 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: policy-0
+  namespace: Seg-Web
+  annotations:
+    description: 'src: (tag = telco-lab|fleet-web) dst: (*) conn: TCP,UDP dst-ports:
+      53'
+    nsx-id: '1038'
+spec:
+  podSelector:
+    matchExpressions:
+    - key: tag__telco-labfleet-web
+      operator: Exists
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+          - Seg-Management
+          - Seg-Database
+          - Seg-Web
+          - default
+      podSelector: {}
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    - port: 53
+      protocol: SCTP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: policy-16
+  namespace: Seg-Web
+  annotations:
+    description: 'src: (tag = telco-lab|fleet-web) dst: (tag = telco-lab|fleet-api)
+      conn: All Connections'
+    nsx-id: '1048'
+spec:
+  podSelector:
+    matchExpressions:
+    - key: tag__telco-labfleet-web
+      operator: Exists
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+          - Seg-Web
+      podSelector:
+        matchExpressions:
+        - key: tag__telco-labfleet-api
+          operator: Exists
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: policy-22
+  namespace: Seg-Web
+  annotations:
+    description: 'src: (*) dst: (tag = telco-lab|fleet-web) conn: All Connections'
+    nsx-id: '1045'
+spec:
+  podSelector:
+    matchExpressions:
+    - key: tag__telco-labfleet-web
+      operator: Exists
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+          - Seg-Management
+          - Seg-Database
+          - Seg-Web
+          - default
+      podSelector: {}

@@ -108,15 +108,14 @@ Long-running operations return a job ID; clients poll `GET .../jobs/{jobId}`.
 
 ## Frontend architecture
 
-React 19 + TypeScript + PatternFly 6. A seven-step PatternFly Wizard drives the workflow:
+React 19 + TypeScript + PatternFly 6. A six-step PatternFly Wizard drives the workflow:
 
 1. **Source** — connect to NSX Manager or upload a dump (single Continue action)
 2. **NSX intent** — review collected stats, connectivity map, and DFW lint (analysis auto-runs)
 3. **Rule selection** — choose which DFW rules to include in synthesis (all selected by default)
-4. **Mapping** — segment and label mappings
-5. **Generation settings** — endpoint targets and advanced synthesis options
-6. **Results** — generated policies and NSX validation comparison (generate + validate auto-run)
-7. **Export** — download YAML or Kustomize ZIP
+4. **Generate** — OpenShift project / networking target, synthesis options, then generate + validate
+5. **Results** — generated policies and NSX validation comparison (generate + validate auto-run)
+6. **Export** — download YAML or Kustomize ZIP
 
 The UI uses PatternFly Page + Masthead (About, New analysis) with wizard navigation as the only process map. Long-running jobs show in-step progress and an expandable activity log.
 

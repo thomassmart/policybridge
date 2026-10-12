@@ -35,7 +35,7 @@ export function WizardFooterActions() {
   const nextLabel =
     stepId === 'source'
       ? 'Continue'
-      : stepId === 'generation'
+      : stepId === 'generate'
         ? 'Generate and validate'
         : 'Next';
 
@@ -57,11 +57,8 @@ export function WizardFooterActions() {
           await session.saveRuleSelection();
           goToNextStep();
           break;
-        case 'mapping':
+        case 'generate':
           await session.saveMapping();
-          goToNextStep();
-          break;
-        case 'generation':
           session.invalidateGenerated();
           goToNextStep();
           break;
